@@ -188,12 +188,11 @@ bool interop_match_manufacturer(const interop_feature_t feature, uint16_t manufa
 bool interop_match_vendor_product_ids(const interop_feature_t feature,
         uint16_t vendor_id, uint16_t product_id);
 
-// Check if a given |addr| matches a known interoperability workaround as
-// identified by the |interop_feature_t| enum. This API is used for simple
-// address based lookups where more information is not available. No
-// look-ups or random address resolution are performed on |addr|. If address
-// is matched, max latency for SSR stored for particular remote device is
-// returned.
+// Check if a given |addr| matches a known interoperability workaround as identified
+// by the |interop_feature_t| enum. This API is used for simple address based lookups
+// where more information is not available. No look-ups or random address resolution
+// are performed on |addr|. If address is matched, max latency for SSR stored for particular
+// remote device is returned.
 bool interop_match_addr_get_max_lat(const interop_feature_t feature,
         const bt_bdaddr_t *addr, uint16_t *max_lat);
 
