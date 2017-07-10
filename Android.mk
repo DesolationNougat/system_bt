@@ -45,6 +45,7 @@ bluetooth_CFLAGS += \
   -Wall \
   -Wextra \
   -Werror \
+  -Wno-error=switch \
   -Wno-gnu-variable-sized-type-not-at-end \
   -Wno-typedef-redefinition \
   -Wno-unused-parameter \
