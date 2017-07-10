@@ -1165,7 +1165,7 @@ static void btif_recv_ctrl_data(void)
             a2dp_cmd_acknowledge(A2DP_CTRL_ACK_SUCCESS);
             break;
         case A2DP_CTRL_GET_CONNECTION_STATUS:
-            if (btif_av_is_connected())
+            if (btif_av_is_connected() && media_task_running != MEDIA_TASK_STATE_SHUTTING_DOWN)
             {
                 BTIF_TRACE_DEBUG("got valid connection");
                 a2dp_cmd_acknowledge(A2DP_CTRL_ACK_SUCCESS);
@@ -3835,7 +3835,15 @@ static void btif_media_task_aa_stop_tx(void)
         {
             if (btif_media_cb.a2dp_cmd_pending == A2DP_CTRL_CMD_STOP ||
                 btif_media_cb.a2dp_cmd_pending == A2DP_CTRL_CMD_SUSPEND)
+            {
+                BTIF_TRACE_DEBUG("Ack Pending Stop/Suspend");
                 a2dp_cmd_acknowledge(A2DP_CTRL_ACK_SUCCESS);
+            }
+            else if (btif_media_cb.a2dp_cmd_pending == A2DP_CTRL_CMD_START)
+            {
+                BTIF_TRACE_ERROR("Ack Pending Start while Disconnect in Progress");
+                a2dp_cmd_acknowledge(A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS);
+            }
             else
             {
                 BTIF_TRACE_ERROR("Invalid cmd pending for ack");

@@ -29,6 +29,7 @@
 #include "bt_common.h"
 #include "gatt_int.h"
 #include "l2c_api.h"
+#include "l2c_int.h"
 #include "btm_int.h"
 #include "btm_ble_int.h"
 #include "bt_utils.h"
@@ -240,7 +241,12 @@ BOOLEAN gatt_disconnect (tGATT_TCB *p_tcb)
         {
             if (p_tcb->att_lcid == L2CAP_ATT_CID)
             {
-                if (ch_state == GATT_CH_OPEN)
+                tL2C_LCB *p_lcb = l2cu_find_lcb_by_bd_addr(p_tcb->peer_bda, p_tcb->transport);
+                tL2C_LINK_STATE link_state = p_lcb != NULL ? p_lcb->link_state : LST_DISCONNECTED;
+                GATT_TRACE_WARNING("%s, ch_state=%d, link_state=%d", __func__, ch_state, link_state);
+
+                if ((ch_state == GATT_CH_OPEN) ||
+                        ((ch_state == GATT_CH_CONN) && (link_state == LST_CONNECTED)))
                 {
                     /* only LCB exist between remote device and local */
                     ret = L2CA_RemoveFixedChnl (L2CAP_ATT_CID, p_tcb->peer_bda);

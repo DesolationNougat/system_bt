@@ -72,6 +72,7 @@ typedef enum {
 #define BTIF_AV_FLAG_REMOTE_SUSPEND        0x2
 #define BTIF_AV_FLAG_PENDING_START         0x4
 #define BTIF_AV_FLAG_PENDING_STOP          0x8
+#define BTIF_AV_FLAG_PENDING_DISCONNECT   0x10
 /* Host role defenitions */
 #define HOST_ROLE_MASTER                   0x00
 #define HOST_ROLE_SLAVE                    0x01
@@ -711,7 +712,9 @@ static BOOLEAN btif_av_state_idle_handler(btif_sm_event_t event, void *p_data, i
                  btif_av_cb[index].peer_sep = p_bta_data->open.sep;
                  btif_a2dp_set_peer_sep(p_bta_data->open.sep);
 
-                 if (p_bta_data->open.edr & BTA_AV_EDR_3MBPS)
+                 if ((p_bta_data->open.edr & BTA_AV_EDR_3MBPS) &&
+                     (!(interop_match_addr(INTEROP_2MBPS_LINK_ONLY,
+                        (const bt_bdaddr_t *)&btif_av_cb[index].peer_bda.address))))
                  {
                      BTIF_TRACE_DEBUG("remote supports 3 mbps");
                      btif_av_cb[index].edr_3mbps = TRUE;
@@ -854,7 +857,9 @@ static BOOLEAN btif_av_state_opening_handler(btif_sm_event_t event, void *p_data
                  }
                  btif_av_cb[index].peer_sep = p_bta_data->open.sep;
                  btif_a2dp_set_peer_sep(p_bta_data->open.sep);
-                 if (p_bta_data->open.edr & BTA_AV_EDR_3MBPS)
+                 if ((p_bta_data->open.edr & BTA_AV_EDR_3MBPS) &&
+                     (!(interop_match_addr(INTEROP_2MBPS_LINK_ONLY,
+                        (const bt_bdaddr_t *)&btif_av_cb[index].peer_bda.address))))
                  {
                      BTIF_TRACE_DEBUG("remote supports 3 mbps");
                      btif_av_cb[index].edr_3mbps = TRUE;
@@ -893,6 +898,12 @@ static BOOLEAN btif_av_state_opening_handler(btif_sm_event_t event, void *p_data
                 }
                 state = BTAV_CONNECTION_STATE_DISCONNECTED;
                 av_state  = BTIF_AV_STATE_IDLE;
+            }
+
+            if (p_bta_data->open.status != BTA_AV_SUCCESS &&
+                    p_bta_data->open.status != BTA_AV_FAIL_SDP)
+            {
+                btif_av_check_and_start_collission_timer(index);
             }
 
             /* inform the application of the event */
@@ -940,10 +951,6 @@ static BOOLEAN btif_av_state_opening_handler(btif_sm_event_t event, void *p_data
                     /* Bring up AVRCP connection too */
                     BTA_AvOpenRc(btif_av_cb[index].bta_handle);
                 }
-            }
-            else if (p_bta_data->open.status != BTA_AV_FAIL_SDP)
-            {
-                btif_av_check_and_start_collission_timer(index);
             }
             btif_queue_advance();
         } break;
@@ -1444,9 +1451,11 @@ static BOOLEAN btif_av_state_opened_handler(btif_sm_event_t event, void *p_data,
                  btif_a2dp_on_stopped(NULL);
              }
 
+            btif_av_cb[index].flags |= BTIF_AV_FLAG_PENDING_DISCONNECT;
             /* inform the application that we are disconnected */
             btif_report_connection_state(BTAV_CONNECTION_STATE_DISCONNECTED,
                                         &(btif_av_cb[index].peer_bda));
+            btif_av_cb[index].flags &= ~BTIF_AV_FLAG_PENDING_DISCONNECT;
 
             /* change state to idle, send acknowledgement if start is pending */
             if (btif_av_cb[index].flags & BTIF_AV_FLAG_PENDING_START) {
@@ -2802,6 +2811,8 @@ static bt_status_t connect_int(bt_bdaddr_t *bd_addr, uint16_t uuid)
 
         BTIF_TRACE_ERROR("%s: All indexes are full", __FUNCTION__);
 
+        btif_report_connection_state(BTAV_CONNECTION_STATE_DISCONNECTED, bd_addr);
+
         /* Multicast: Check if AV slot is available for connection
          * If not available, AV got connected to different devices.
          * Disconnect this RC connection without AV connection.
@@ -3047,6 +3058,7 @@ BOOLEAN btif_av_stream_ready(void)
          * Check the pending SUSPEND flag and return failure
          * if suspend is in progress.
          */
+        BTIF_TRACE_DEBUG("btif_av_stream_ready flags: %d", btif_av_cb[i].flags);
         if (btif_av_cb[i].dual_handoff ||
             (btif_av_cb[i].flags & BTIF_AV_FLAG_LOCAL_SUSPEND_PENDING))
         {
@@ -3054,7 +3066,7 @@ BOOLEAN btif_av_stream_ready(void)
             break;
         }
         else if (btif_av_cb[i].flags &
-            (BTIF_AV_FLAG_REMOTE_SUSPEND|BTIF_AV_FLAG_PENDING_STOP))
+            (BTIF_AV_FLAG_REMOTE_SUSPEND|BTIF_AV_FLAG_PENDING_STOP|BTIF_AV_FLAG_PENDING_DISCONNECT))
         {
             status = FALSE;
             break;

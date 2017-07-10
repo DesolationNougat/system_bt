@@ -412,6 +412,7 @@ typedef struct {
     UINT8               tsep;           /* SEP type */
     UINT8               media_type;     /* Media type */
     UINT16              nsc_mask;       /* Nonsupported protocol command messages */
+    UINT8               registration_id;/* All SCBs created during single registration will have same value.*/
 } tAVDT_CS;
 
 /* AVDT data option mask is used in the write request */

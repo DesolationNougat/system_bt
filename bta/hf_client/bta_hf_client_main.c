@@ -67,7 +67,8 @@ enum
     BTA_HF_CLIENT_SCO_OPEN,
     BTA_HF_CLIENT_SCO_CLOSE,
     BTA_HF_CLIENT_SCO_SHUTDOWN,
-    BTA_HF_CLIENT_FREE_DB,
+    BTA_HF_CLIENT_FREE_DB_INT,
+    BTA_HF_CLIENT_FREE_DB_ACP,
     BTA_HF_CLIENT_OPEN_FAIL,
     BTA_HF_CLIENT_RFC_OPEN,
     BTA_HF_CLIENT_RFC_FAIL,
@@ -103,7 +104,8 @@ const tBTA_HF_CLIENT_ACTION bta_hf_client_action[] =
 /* BTA_HF_CLIENT_SCO_OPEN */      bta_hf_client_sco_open,
 /* BTA_HF_CLIENT_SCO_CLOSE */     bta_hf_client_sco_close,
 /* BTA_HF_CLIENT_SCO_SHUTDOWN */  bta_hf_client_sco_shutdown,
-/* BTA_HF_CLIENT_FREE_DB */       bta_hf_client_free_db,
+/* BTA_HF_CLIENT_FREE_DB_INT */   bta_hf_client_free_db_int,
+/* BTA_HF_CLIENT_FREE_DB_ACP */   bta_hf_client_free_db_acp,
 /* BTA_HF_CLIENT_OPEN_FAIL */     bta_hf_client_open_fail,
 /* BTA_HF_CLIENT_RFC_OPEN */      bta_hf_client_rfc_open,
 /* BTA_HF_CLIENT_RFC_FAIL */      bta_hf_client_rfc_fail,
@@ -136,7 +138,7 @@ const UINT8 bta_hf_client_st_init[][BTA_HF_CLIENT_NUM_COLS] =
 /* RFC_CLOSE_EVT */         {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
 /* RFC_SRV_CLOSE_EVT */     {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
 /* RFC_DATA_EVT */          {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
-/* DISC_ACP_RES_EVT */      {BTA_HF_CLIENT_FREE_DB,        BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
+/* DISC_ACP_RES_EVT */      {BTA_HF_CLIENT_FREE_DB_ACP,    BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
 /* DISC_INT_RES_EVT */      {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
 /* DISC_OK_EVT */           {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
 /* DISC_FAIL_EVT */         {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
@@ -205,8 +207,8 @@ const UINT8 bta_hf_client_st_closing[][BTA_HF_CLIENT_NUM_COLS] =
 /* RFC_CLOSE_EVT */         {BTA_HF_CLIENT_RFC_CLOSE,      BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
 /* RFC_SRV_CLOSE_EVT */     {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_CLOSING_ST},
 /* RFC_DATA_EVT */          {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_CLOSING_ST},
-/* DISC_ACP_RES_EVT */      {BTA_HF_CLIENT_FREE_DB,        BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_CLOSING_ST},
-/* DISC_INT_RES_EVT */      {BTA_HF_CLIENT_FREE_DB,        BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
+/* DISC_ACP_RES_EVT */      {BTA_HF_CLIENT_FREE_DB_ACP,    BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_CLOSING_ST},
+/* DISC_INT_RES_EVT */      {BTA_HF_CLIENT_FREE_DB_INT,    BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_INIT_ST},
 /* DISC_OK_EVT */           {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_CLOSING_ST},
 /* DISC_FAIL_EVT */         {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_CLOSING_ST},
 /* SCO_OPEN_EVT */          {BTA_HF_CLIENT_IGNORE,         BTA_HF_CLIENT_IGNORE,          BTA_HF_CLIENT_CLOSING_ST},
@@ -346,11 +348,22 @@ void bta_hf_client_collision_cback (tBTA_SYS_CONN_STATUS status, UINT8 id,
 
         bta_hf_client_cb.scb.state = BTA_HF_CLIENT_INIT_ST;
 
-        /* Cancel SDP if it had been started. */
-        if(bta_hf_client_cb.scb.p_disc_db)
+        APPL_TRACE_WARNING ("%s:bta_hf_client_cb.scb.role = %d", __func__,
+                                 bta_hf_client_cb.scb.role);
+        /* Cancel SDP if it had been started for initiator. */
+        if (bta_hf_client_cb.scb.p_disc_db_int)
         {
-            (void)SDP_CancelServiceSearch (bta_hf_client_cb.scb.p_disc_db);
-            bta_hf_client_free_db(NULL);
+            APPL_TRACE_WARNING ("%s:cancel SDP serach for the HFP client initiator:", __func__);
+            (void)SDP_CancelServiceSearch (bta_hf_client_cb.scb.p_disc_db_int);
+            bta_hf_client_free_db_int(NULL);
+        }
+
+        /* Cancel SDP if it had been started for acceptor. */
+        if (bta_hf_client_cb.scb.p_disc_db_acp)
+        {
+            APPL_TRACE_WARNING ("%s:cancel SDP serach for the HFP client acceptor:", __func__);
+            (void)SDP_CancelServiceSearch (bta_hf_client_cb.scb.p_disc_db_acp);
+            bta_hf_client_free_db_acp(NULL);
         }
 
         /* reopen registered server */

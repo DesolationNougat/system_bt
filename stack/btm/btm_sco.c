@@ -35,7 +35,8 @@
 #include "hcidefs.h"
 #include "bt_utils.h"
 #include "device/include/controller.h"
-
+#include "device/include/interop.h"
+extern void bta_dm_pm_set_sniff_policy_toggle(BD_ADDR peer_addr, BOOLEAN bDisable);
 
 #if BTM_SCO_INCLUDED == TRUE
 
@@ -641,6 +642,10 @@ tBTM_STATUS BTM_CreateSco (BD_ADDR remote_bda, BOOLEAN is_orig, UINT16 pkt_types
                         {
                             BTM_TRACE_DEBUG("%s In sniff, park or pend mode: %d", __func__, state);
                             memset( (void*)&pm, 0, sizeof(pm));
+                            if (interop_match_addr(INTEROP_DISABLE_SNIFF_POLICY_DURING_SCO,
+                                             (const bt_bdaddr_t *)&remote_bda)) {
+                                bta_dm_pm_set_sniff_policy_toggle(remote_bda, true);
+                            }
                             pm.mode = BTM_PM_MD_ACTIVE;
                             BTM_SetPowerMode(BTM_PM_SET_ONLY_ID, remote_bda, &pm);
                             p->state = SCO_ST_PEND_UNPARK;
@@ -708,7 +713,10 @@ tBTM_STATUS BTM_CreateSco (BD_ADDR remote_bda, BOOLEAN is_orig, UINT16 pkt_types
                 {
                     BTM_TRACE_API("BTM_CreateSco -> (e)SCO Link for ACL handle 0x%04x, Desired Type %d",
                                     acl_handle, btm_cb.sco_cb.desired_sco_mode);
-
+                    if (interop_match_addr(INTEROP_DISABLE_SNIFF_POLICY_DURING_SCO,
+                                               (const bt_bdaddr_t *)&remote_bda)) {
+                        bta_dm_pm_set_sniff_policy_toggle(remote_bda, true);
+                    }
                     if ((btm_send_connect_request(acl_handle, p_setup)) != BTM_CMD_STARTED)
                         return (BTM_NO_RESOURCES);
 

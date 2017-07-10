@@ -500,6 +500,8 @@ void btm_acl_update_busy_level (tBTM_BLI_EVENT event)
     UINT8 busy_level = btm_cb.busy_level;
     BTM_TRACE_DEBUG ("btm_acl_update_busy_level");
     BOOLEAN old_inquiry_state = btm_cb.is_inquiry;
+    /*Initialize busy_level_flags to 0*/
+    evt.busy_level_flags = 0;
     switch (event)
     {
         case BTM_BLI_ACL_UP_EVT:

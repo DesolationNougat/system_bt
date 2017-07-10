@@ -248,11 +248,21 @@ void bta_hf_client_rfc_do_close(tBTA_HF_CLIENT_DATA *p_data)
         p_buf->hdr.event = BTA_HF_CLIENT_RFC_CLOSE_EVT;
         bta_sys_sendmsg(p_buf);
 
-        /* Cancel SDP if it had been started. */
-        if(bta_hf_client_cb.scb.p_disc_db)
+        APPL_TRACE_DEBUG("%s: bta_hf_client_cb.scb.role = %d",__func__, bta_hf_client_cb.scb.role);
+        /* Cancel SDP if it had been started for initiator. */
+        if (bta_hf_client_cb.scb.p_disc_db_int)
         {
-            (void)SDP_CancelServiceSearch (bta_hf_client_cb.scb.p_disc_db);
-            bta_hf_client_free_db(NULL);
+            APPL_TRACE_DEBUG("%s: Cancel SDP service search for the HF client initiator", __func__);
+            (void)SDP_CancelServiceSearch (bta_hf_client_cb.scb.p_disc_db_int);
+            bta_hf_client_free_db_int(NULL);
+        }
+
+        /* Cancel SDP if it had been started for acceptor. */
+        if (bta_hf_client_cb.scb.p_disc_db_acp)
+        {
+            APPL_TRACE_DEBUG("%s: Cancel SDP service search for the HF client acceptor", __func__);
+            (void)SDP_CancelServiceSearch (bta_hf_client_cb.scb.p_disc_db_acp);
+            bta_hf_client_free_db_acp(NULL);
         }
     }
 }

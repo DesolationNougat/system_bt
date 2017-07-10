@@ -222,19 +222,22 @@ BOOLEAN bta_hf_client_sdp_find_attr(void)
     BOOLEAN             result = FALSE;
 
     bta_hf_client_cb.scb.peer_version = HFP_VERSION_1_1;   /* Default version */
-
+    APPL_TRACE_DEBUG("%s: bta_hf_client_cb.scb.role = %d",__func__, bta_hf_client_cb.scb.role);
     /* loop through all records we found */
     while (TRUE)
     {
         /* get next record; if none found, we're done */
-        if ((p_rec = SDP_FindServiceInDb(bta_hf_client_cb.scb.p_disc_db, UUID_SERVCLASS_AG_HANDSFREE, p_rec)) == NULL)
-        {
-            break;
-        }
-
-        /* get scn from proto desc list if initiator */
         if (bta_hf_client_cb.scb.role == BTA_HF_CLIENT_INT)
         {
+            APPL_TRACE_DEBUG("%s: find SDP services for HFP client initiator", __func__);
+            if ((p_rec = SDP_FindServiceInDb(bta_hf_client_cb.scb.p_disc_db_int,
+                                             UUID_SERVCLASS_AG_HANDSFREE, p_rec)) == NULL)
+            {
+                APPL_TRACE_DEBUG("%s:initiator p_rec is null", __func__);
+                break;
+            }
+
+            /* get scn from proto desc list if initiator */
             if (SDP_FindProtocolListElemInRec(p_rec, UUID_PROTOCOL_RFCOMM, &pe))
             {
                 bta_hf_client_cb.scb.peer_scn = (UINT8) pe.params[0];
@@ -242,6 +245,17 @@ BOOLEAN bta_hf_client_sdp_find_attr(void)
             else
             {
                 continue;
+            }
+        }
+        /* get next record; if none found, we're done */
+        if (bta_hf_client_cb.scb.role == BTA_HF_CLIENT_ACP)
+        {
+            APPL_TRACE_DEBUG("%s: find SDP services for HFP client acceptor", __func__);
+            if ((p_rec = SDP_FindServiceInDb(bta_hf_client_cb.scb.p_disc_db_acp,
+                                             UUID_SERVCLASS_AG_HANDSFREE, p_rec)) == NULL)
+            {
+                 APPL_TRACE_DEBUG("%s:acceptor p_rec is null", __func__);
+                 break;
             }
         }
 
@@ -304,8 +318,10 @@ void bta_hf_client_do_disc(void)
     UINT16          num_uuid = 1;
     UINT16          attr_list[4];
     UINT8           num_attr;
-    BOOLEAN         db_inited = FALSE;
+    BOOLEAN         db_inited_int = FALSE;
+    BOOLEAN         db_inited_acp = FALSE;
 
+    APPL_TRACE_DEBUG("%s: bta_hf_client_cb.scb.role=%d",__func__, bta_hf_client_cb.scb.role);
     /* initiator; get proto list and features */
     if (bta_hf_client_cb.scb.role == BTA_HF_CLIENT_INT)
     {
@@ -315,6 +331,32 @@ void bta_hf_client_do_disc(void)
         attr_list[3] = ATTR_ID_SUPPORTED_FEATURES;
         num_attr = 4;
         uuid_list[0].uu.uuid16 = UUID_SERVCLASS_AG_HANDSFREE;
+
+        /* allocate buffer for sdp database for initiator */
+        bta_hf_client_cb.scb.p_disc_db_int =
+                       (tSDP_DISCOVERY_DB *)osi_malloc(BT_DEFAULT_BUFFER_SIZE);
+
+        /* set up service discovery database; attr happens to be attr_list len */
+        uuid_list[0].len = LEN_UUID_16;
+        uuid_list[1].len = LEN_UUID_16;
+        db_inited_int = SDP_InitDiscoveryDb(bta_hf_client_cb.scb.p_disc_db_int,
+                                    BT_DEFAULT_BUFFER_SIZE, num_uuid,
+                                    uuid_list, num_attr, attr_list);
+        APPL_TRACE_DEBUG("%s: db_inited_int=%d",__func__, db_inited_int);
+        if (db_inited_int)
+        {
+            /*Service discovery not initiated */
+            db_inited_int = SDP_ServiceSearchAttributeRequest(bta_hf_client_cb.scb.peer_addr,
+                                bta_hf_client_cb.scb.p_disc_db_int, bta_hf_client_sdp_cback);
+        }
+
+        if (!db_inited_int)
+        {
+            /*free discover db */
+            bta_hf_client_free_db_int(NULL);
+            /* sent failed event */
+            bta_hf_client_sm_execute(BTA_HF_CLIENT_DISC_FAIL_EVT, NULL);
+        }
     }
     /* acceptor; get features */
     else
@@ -324,47 +366,64 @@ void bta_hf_client_do_disc(void)
         attr_list[2] = ATTR_ID_SUPPORTED_FEATURES;
         num_attr = 3;
         uuid_list[0].uu.uuid16 = UUID_SERVCLASS_AG_HANDSFREE;
-    }
 
-    /* allocate buffer for sdp database */
-    bta_hf_client_cb.scb.p_disc_db = (tSDP_DISCOVERY_DB *)osi_malloc(BT_DEFAULT_BUFFER_SIZE);
+        /* allocate buffer for sdp database for acceptor */
+        bta_hf_client_cb.scb.p_disc_db_acp = (tSDP_DISCOVERY_DB *)osi_malloc(BT_DEFAULT_BUFFER_SIZE);
 
-    /* set up service discovery database; attr happens to be attr_list len */
-    uuid_list[0].len = LEN_UUID_16;
-    uuid_list[1].len = LEN_UUID_16;
-    db_inited = SDP_InitDiscoveryDb(bta_hf_client_cb.scb.p_disc_db,
+        /* set up service discovery database; attr happens to be attr_list len */
+        uuid_list[0].len = LEN_UUID_16;
+        uuid_list[1].len = LEN_UUID_16;
+        db_inited_acp = SDP_InitDiscoveryDb(bta_hf_client_cb.scb.p_disc_db_acp,
                                     BT_DEFAULT_BUFFER_SIZE, num_uuid,
                                     uuid_list, num_attr, attr_list);
+        APPL_TRACE_DEBUG("%s: db_inited_acp=%d",__func__, db_inited_acp);
+        if (db_inited_acp)
+        {
+            /*Service discovery not initiated */
+            db_inited_acp = SDP_ServiceSearchAttributeRequest(bta_hf_client_cb.scb.peer_addr,
+                                bta_hf_client_cb.scb.p_disc_db_acp, bta_hf_client_sdp_cback);
+        }
 
-    if (db_inited)
-    {
-        /*Service discovery not initiated */
-        db_inited = SDP_ServiceSearchAttributeRequest(bta_hf_client_cb.scb.peer_addr,
-                            bta_hf_client_cb.scb.p_disc_db, bta_hf_client_sdp_cback);
+        if (!db_inited_acp)
+        {
+            /*free discover db */
+            bta_hf_client_free_db_acp(NULL);
+            /* sent failed event */
+            bta_hf_client_sm_execute(BTA_HF_CLIENT_DISC_FAIL_EVT, NULL);
+        }
     }
-
-    if (!db_inited)
-    {
-        /*free discover db */
-        bta_hf_client_free_db(NULL);
-        /* sent failed event */
-        bta_hf_client_sm_execute(BTA_HF_CLIENT_DISC_FAIL_EVT, NULL);
-    }
-
 }
 
 /*******************************************************************************
 **
-** Function         bta_hf_client_free_db
+** Function         bta_hf_client_free_db_int
 **
-** Description      Free discovery database.
+** Description      Free discovery database of initiator.
 **
 **
 ** Returns          void
 **
 *******************************************************************************/
-void bta_hf_client_free_db(tBTA_HF_CLIENT_DATA *p_data)
+void bta_hf_client_free_db_int(tBTA_HF_CLIENT_DATA *p_data)
 {
     UNUSED(p_data);
-    osi_free_and_reset((void **)&bta_hf_client_cb.scb.p_disc_db);
+    APPL_TRACE_DEBUG("%s:",__func__);
+    osi_free_and_reset((void **)&bta_hf_client_cb.scb.p_disc_db_int);
+}
+
+/*******************************************************************************
+**
+** Function         bta_hf_client_free_db_acp
+**
+** Description      Free discovery database of acceptor.
+**
+**
+** Returns          void
+**
+*******************************************************************************/
+void bta_hf_client_free_db_acp(tBTA_HF_CLIENT_DATA *p_data)
+{
+    UNUSED(p_data);
+    APPL_TRACE_DEBUG("%s:",__func__);
+    osi_free_and_reset((void **)&bta_hf_client_cb.scb.p_disc_db_acp);
 }

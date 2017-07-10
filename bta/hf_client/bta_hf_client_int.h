@@ -140,7 +140,8 @@ typedef struct
 {
     UINT16              serv_handle;    /* RFCOMM server handle */
     BD_ADDR             peer_addr;      /* peer bd address */
-    tSDP_DISCOVERY_DB   *p_disc_db;     /* pointer to discovery database */
+    tSDP_DISCOVERY_DB   *p_disc_db_int; /* pointer to discovery database for initiator */
+    tSDP_DISCOVERY_DB   *p_disc_db_acp; /* pointer to discovery database for acceptor*/
     UINT16              conn_handle;    /* RFCOMM handle of connected service */
     tBTA_SEC            serv_sec_mask;  /* server security mask */
     tBTA_SEC            cli_sec_mask;   /* client security mask */
@@ -216,7 +217,8 @@ extern void bta_hf_client_create_record(tBTA_HF_CLIENT_DATA *p_data);
 extern void bta_hf_client_del_record(tBTA_HF_CLIENT_DATA *p_data);
 extern BOOLEAN bta_hf_client_sdp_find_attr(void);
 extern void bta_hf_client_do_disc(void);
-extern void bta_hf_client_free_db(tBTA_HF_CLIENT_DATA *p_data);
+extern void bta_hf_client_free_db_int(tBTA_HF_CLIENT_DATA *p_data);
+extern void bta_hf_client_free_db_acp(tBTA_HF_CLIENT_DATA *p_data);
 
 /* RFCOMM functions */
 extern void bta_hf_client_setup_port(UINT16 handle);

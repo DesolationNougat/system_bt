@@ -47,6 +47,7 @@ static BOOLEAN bta_dm_pm_is_sco_active ();
 static int bta_dm_get_sco_index();
 static void bta_dm_pm_hid_check(BOOLEAN bScoActive);
 static void bta_dm_pm_set_sniff_policy(tBTA_DM_PEER_DEVICE *p_dev, BOOLEAN bDisable);
+void bta_dm_pm_set_sniff_policy_toggle(BD_ADDR peer_addr, BOOLEAN bDisable);
 static void bta_dm_pm_stop_timer_by_index(tBTA_PM_TIMER *p_timer,
                                           UINT8 timer_idx);
 
@@ -1333,7 +1334,13 @@ static void bta_dm_pm_hid_check(BOOLEAN bScoActive)
     }
 
 }
-
+void bta_dm_pm_set_sniff_policy_toggle(BD_ADDR peer_addr, BOOLEAN bDisable)
+{
+    APPL_TRACE_DEBUG("%s: bDisable:%d", __func__, bDisable);
+    tBTA_DM_PEER_DEVICE *p_dev = NULL;
+    p_dev = bta_dm_find_peer_device(peer_addr);
+    bta_dm_pm_set_sniff_policy(p_dev, bDisable);
+}
 /*******************************************************************************
 **
 ** Function         bta_dm_pm_set_sniff_policy

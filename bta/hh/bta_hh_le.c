@@ -864,7 +864,8 @@ void bta_hh_le_register_input_notif(tBTA_HH_DEV_CB *p_dev_cb, UINT8 srvc_inst,
 *******************************************************************************/
 void bta_hh_le_deregister_input_notif(tBTA_HH_DEV_CB *p_dev_cb)
 {
-    tBTA_HH_LE_RPT  *p_rpt = &p_dev_cb->hid_srvc[p_dev_cb->cur_srvc_index].report[0];
+    tBTA_HH_LE_RPT  *p_rpt = &p_dev_cb->hid_srvc[0].report[0];
+    APPL_TRACE_DEBUG("%s ---> current service instance:%d", __func__, p_dev_cb->cur_srvc_index);
 
     for (UINT8 i = 0; i < BTA_HH_LE_RPT_MAX; i++, p_rpt++)
     {
@@ -983,6 +984,7 @@ BOOLEAN bta_hh_le_write_rpt_clt_cfg(tBTA_HH_DEV_CB *p_cb, UINT8 srvc_inst_id)
         p_cb->disc_active &= ~BTA_HH_LE_DISC_HIDS;
 
         bta_hh_le_open_cmpl(p_cb);
+        p_cb->cur_srvc_index = 0;
     }
     return FALSE;
 }

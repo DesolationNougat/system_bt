@@ -4103,10 +4103,13 @@ void btm_sec_auth_complete (UINT16 handle, UINT8 status)
     /* User probably Disabled the keyboard while it was asleap.  Let her try */
     if (btm_cb.api.p_auth_complete_callback)
     {
-        /* report the authentication status */
-        /* don't post auth status for collision, key missing cases as stack may retry for security */
-        if ((old_state != BTM_PAIR_STATE_IDLE) || ((status != HCI_SUCCESS) &&
-            (status != HCI_ERR_KEY_MISSING)))
+
+        /* don't post auth status key missing,peer user disc and connection timeout cases */
+        if ((old_state != BTM_PAIR_STATE_IDLE) ||
+            ((status != HCI_SUCCESS) &&
+             (status != HCI_ERR_PEER_USER) &&
+             (status != HCI_ERR_CONNECTION_TOUT) &&
+             (status != HCI_ERR_LMP_RESPONSE_TIMEOUT)))
             (*btm_cb.api.p_auth_complete_callback) (p_dev_rec->bd_addr,
                                                     p_dev_rec->dev_class,
                                                     p_dev_rec->sec_bd_name, status);
@@ -4399,6 +4402,7 @@ static void btm_sec_connect_after_reject_timeout(UNUSED_ATTR void *data)
 
     BTM_TRACE_EVENT("%s", __func__);
     btm_cb.p_collided_dev_rec = 0;
+    btm_cb.collision_start_time = 0;
 
     if (btm_sec_dd_create_conn(p_dev_rec) != BTM_CMD_STARTED)
     {
@@ -4430,6 +4434,7 @@ void btm_sec_connected (UINT8 *bda, UINT16 handle, UINT8 status, UINT8 enc_mode)
     BOOLEAN          is_pairing_device = FALSE;
     tACL_CONN        *p_acl_cb;
     UINT8            bit_shift = 0;
+    BTM_TRACE_DEBUG ("%s",__func__);
 
     btm_acl_resubmit_page();
 
@@ -4631,6 +4636,14 @@ void btm_sec_connected (UINT8 *bda, UINT16 handle, UINT8 status, UINT8 enc_mode)
                                                         p_dev_rec->dev_class,
                                                         p_dev_rec->sec_bd_name, status);
             }
+        }
+        /*as p_auth_complete_callback may remove p_de_rec from list, so we
+         * need find it again */
+        p_dev_rec = btm_find_dev_by_handle (handle);
+        if(p_dev_rec == NULL)
+        {
+            BTM_TRACE_ERROR("%s p_dev_rec have been removed, return", __func__);
+            return;
         }
 
         if (status == HCI_ERR_CONNECTION_TOUT || status == HCI_ERR_LMP_RESPONSE_TIMEOUT  ||
@@ -6008,6 +6021,7 @@ void btm_sec_dev_rec_cback_event (tBTM_SEC_DEV_REC *p_dev_rec, UINT8 res, BOOLEA
 {
     tBTM_SEC_CALLBACK   *p_callback = p_dev_rec->p_callback;
 
+    BTM_TRACE_DEBUG ("%s ",__func__);
     if (p_dev_rec->p_callback)
     {
         p_dev_rec->p_callback = NULL;

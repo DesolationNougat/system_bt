@@ -104,6 +104,7 @@ typedef enum {
     A2DP_CTRL_ACK_SUCCESS,
     A2DP_CTRL_ACK_FAILURE,
     A2DP_CTRL_ACK_INCALL_FAILURE, /* Failure when in Call*/
+    A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS, /* Ack when Disconnection in Progress */
     A2DP_CTRL_ACK_UNSUPPORTED
 } tA2DP_CTRL_ACK;
 

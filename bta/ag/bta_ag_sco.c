@@ -33,6 +33,7 @@
 #include "btm_api.h"
 #include "bt_common.h"
 #include "utl.h"
+#include "device/include/interop.h"
 //#include "osi/include/log.h"
 
 #ifndef BTA_AG_SCO_DEBUG
@@ -45,6 +46,7 @@
 #endif
 
 extern fixed_queue_t *btu_bta_alarm_queue;
+extern void bta_dm_pm_set_sniff_policy_toggle(BD_ADDR peer_addr, BOOLEAN bDisable);
 
 #if BTA_AG_SCO_DEBUG == TRUE
 static char *bta_ag_sco_evt_str(UINT8 event);
@@ -305,6 +307,10 @@ static void bta_ag_sco_disc_cback(UINT16 sco_idx)
         p_buf->event = BTA_AG_SCO_CLOSE_EVT;
         p_buf->layer_specific = handle;
         bta_sys_sendmsg(p_buf);
+        if (interop_match_addr(INTEROP_DISABLE_SNIFF_POLICY_DURING_SCO,
+                        (const bt_bdaddr_t *)&bta_ag_cb.sco.p_curr_scb->peer_addr)) {
+            bta_dm_pm_set_sniff_policy_toggle(bta_ag_cb.sco.p_curr_scb->peer_addr, false);
+        }
     } else {
         /* no match found */
         APPL_TRACE_DEBUG("no scb for ag_sco_disc_cback");

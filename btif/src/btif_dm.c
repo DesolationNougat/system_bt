@@ -1437,9 +1437,12 @@ static void btif_dm_auth_cmpl_evt (tBTA_DM_AUTH_CMPL *p_auth_cmpl)
                 status =  BT_STATUS_AUTH_FAILURE;
                 break;
 
+            /* Dont fail the bonding for key missing error as stack retry security */
+            case HCI_ERR_KEY_MISSING:
+                btif_storage_remove_bonded_device(&bd_addr);
+                return;
             /* map the auth failure codes, so we can retry pairing if necessary */
             case HCI_ERR_AUTH_FAILURE:
-            case HCI_ERR_KEY_MISSING:
                 btif_storage_remove_bonded_device(&bd_addr);
             case HCI_ERR_HOST_REJECT_SECURITY:
             case HCI_ERR_ENCRY_MODE_NOT_ACCEPTABLE:
@@ -2379,7 +2382,9 @@ static void btif_dm_generic_evt(UINT16 event, char* p_param)
             }
             break;
         case BTIF_DM_CB_LE_TX_TEST:
+        case BTIF_DM_CB_LE_ENH_TX_TEST:
         case BTIF_DM_CB_LE_RX_TEST:
+        case BTIF_DM_CB_LE_ENH_RX_TEST:
             {
                 uint8_t status;
                 STREAM_TO_UINT8(status, p_param);
@@ -3028,10 +3033,15 @@ bt_status_t btif_dm_get_adapter_property(bt_property_t *prop)
 *******************************************************************************/
 bt_status_t btif_dm_get_remote_services(bt_bdaddr_t *remote_addr)
 {
-    bdstr_t bdstr;
+    bdstr_t bdstr = {'\0'};
 
     BTIF_TRACE_EVENT("%s: remote_addr=%s", __FUNCTION__, bdaddr_to_string(remote_addr, bdstr, sizeof(bdstr)));
 
+    if (bdaddr_is_empty(remote_addr))
+    {
+        BTIF_TRACE_WARNING("%s: remote_addr =%s not valid.", __FUNCTION__, bdaddr_to_string(remote_addr, bdstr, sizeof(bdstr)));
+        return BT_STATUS_FAIL;
+    }
     BTA_DmDiscover(remote_addr->address, BTA_ALL_SERVICE_MASK,
                    bte_dm_search_services_evt, TRUE);
 
@@ -3799,9 +3809,21 @@ static void btif_dm_ble_tx_test_cback(void *p)
                           (char *)p, 1, NULL);
 }
 
+static void btif_dm_ble_enh_tx_test_cback(void *p)
+{
+    btif_transfer_context(btif_dm_generic_evt, BTIF_DM_CB_LE_ENH_TX_TEST,
+                          (char *)p, 1, NULL);
+}
+
 static void btif_dm_ble_rx_test_cback(void *p)
 {
     btif_transfer_context(btif_dm_generic_evt, BTIF_DM_CB_LE_RX_TEST,
+                          (char *)p, 1, NULL);
+}
+
+static void btif_dm_ble_enh_rx_test_cback(void *p)
+{
+    btif_transfer_context(btif_dm_generic_evt, BTIF_DM_CB_LE_ENH_RX_TEST,
                           (char *)p, 1, NULL);
 }
 
@@ -3826,9 +3848,17 @@ bt_status_t btif_le_test_mode(uint16_t opcode, uint8_t *buf, uint8_t len)
              if (len != 3) return BT_STATUS_PARM_INVALID;
              BTM_BleTransmitterTest(buf[0],buf[1],buf[2], btif_dm_ble_tx_test_cback);
              break;
+         case HCI_BLE_ENH_TRANSMITTER_TEST:
+             if (len != 4) return BT_STATUS_PARM_INVALID;
+             BTM_BleEnhTransmitterTest(buf[0],buf[1],buf[2],buf[3], btif_dm_ble_enh_tx_test_cback);
+             break;
          case HCI_BLE_RECEIVER_TEST:
              if (len != 1) return BT_STATUS_PARM_INVALID;
              BTM_BleReceiverTest(buf[0], btif_dm_ble_rx_test_cback);
+             break;
+         case HCI_BLE_ENH_RECEIVER_TEST:
+             if (len != 3) return BT_STATUS_PARM_INVALID;
+             BTM_BleEnhReceiverTest(buf[0],buf[1],buf[2], btif_dm_ble_enh_rx_test_cback);
              break;
          case HCI_BLE_TEST_END:
              BTM_BleTestEnd((tBTM_CMPL_CB*) btif_dm_ble_test_end_cback);

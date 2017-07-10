@@ -166,7 +166,7 @@ extern void btif_gatts_add_bonded_dev_from_nv(BD_ADDR bda);
 static bt_status_t btif_in_fetch_bonded_ble_device(const char *remote_bd_addr,int add,
                                               btif_bonded_devices_t *p_bonded_devices);
 #endif
-static bt_status_t btif_in_fetch_bonded_device(const char *bdstr);
+static bt_status_t btif_in_fetch_bonded_device(const char *bdstr, int *dev_type);
 
 /************************************************************************************
 **  Static functions
@@ -176,6 +176,7 @@ static int prop2cfg(bt_bdaddr_t *remote_bd_addr, bt_property_t *prop)
 {
     bdstr_t bdstr = {0};
     int name_length = 0;
+    int dev_type = BT_DEVICE_TYPE_BREDR;
     if(remote_bd_addr)
         bdaddr_to_string(remote_bd_addr, bdstr, sizeof(bdstr));
     BTIF_TRACE_DEBUG("in, bd addr:%s, prop type:%d, len:%d", bdstr, prop->type, prop->len);
@@ -265,8 +266,14 @@ static int prop2cfg(bt_bdaddr_t *remote_bd_addr, bt_property_t *prop)
     }
 
     /* save changes if the device was bonded */
-    if (btif_in_fetch_bonded_device(bdstr) == BT_STATUS_SUCCESS) {
-      btif_config_flush();
+    if (btif_in_fetch_bonded_device(bdstr, &dev_type) == BT_STATUS_SUCCESS) {
+      // flush is expensive, avoid for BLE devices during BLE Scanning
+      if(dev_type == BT_DEVICE_TYPE_BREDR)
+      {
+        btif_config_flush();
+      } else {
+        btif_config_save();
+      }
     }
 
     return TRUE;
@@ -396,9 +403,10 @@ static int cfg2prop(bt_bdaddr_t *remote_bd_addr, bt_property_t *prop)
 ** Returns          BT_STATUS_SUCCESS if successful, BT_STATUS_FAIL otherwise
 **
 *******************************************************************************/
-static bt_status_t btif_in_fetch_bonded_device(const char *bdstr)
+static bt_status_t btif_in_fetch_bonded_device(const char *bdstr, int *p_dev_type)
 {
     BOOLEAN bt_linkkey_file_found=FALSE;
+    BOOLEAN bt_ltk_found=FALSE;
 
         LINK_KEY link_key;
         size_t size = sizeof(link_key);
@@ -415,17 +423,23 @@ static bt_status_t btif_in_fetch_bonded_device(const char *bdstr)
             }
         }
 #if (BLE_INCLUDED == TRUE)
-        if((btif_in_fetch_bonded_ble_device(bdstr, FALSE, NULL) != BT_STATUS_SUCCESS)
-                && (!bt_linkkey_file_found))
+        if (btif_in_fetch_bonded_ble_device(bdstr, FALSE, NULL) == BT_STATUS_SUCCESS)
+           bt_ltk_found = TRUE;
+
+        if(!bt_ltk_found && !bt_linkkey_file_found)
         {
-            BTIF_TRACE_DEBUG("Remote device:%s, no link key or ble key found", bdstr);
-            return BT_STATUS_FAIL;
+           BTIF_TRACE_DEBUG("Remote device:%s, no link key or ble key found", bdstr);
+           return BT_STATUS_FAIL;
+        } else {
+           btif_config_get_int(bdstr, "DevType", p_dev_type);
         }
 #else
         if((!bt_linkkey_file_found))
         {
             BTIF_TRACE_DEBUG("Remote device:%s, no link key found", bdstr);
             return BT_STATUS_FAIL;
+        } else {
+           btif_config_get_int(bdstr, "DevType", p_dev_type);
         }
 #endif
     return BT_STATUS_SUCCESS;
@@ -1352,6 +1366,7 @@ bt_status_t btif_storage_load_bonded_hid_info(void)
     uint16_t attr_mask;
     uint8_t  sub_class;
     uint8_t  app_id;
+    int      dev_type;
 
     memset(&dscp_info, 0, sizeof(dscp_info));
     for (const btif_config_section_iter_t *iter = btif_config_section_begin(); iter != btif_config_section_end(); iter = btif_config_section_next(iter)) {
@@ -1361,7 +1376,7 @@ bt_status_t btif_storage_load_bonded_hid_info(void)
 
         BTIF_TRACE_DEBUG("Remote device:%s", name);
         int value;
-        if(btif_in_fetch_bonded_device(name) == BT_STATUS_SUCCESS)
+        if(btif_in_fetch_bonded_device(name, &dev_type) == BT_STATUS_SUCCESS)
         {
             if(btif_config_get_int(name, "HidAttrMask", &value))
             {
