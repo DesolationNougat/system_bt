@@ -28,6 +28,8 @@
 #include <stdio.h>
 #include <stddef.h>
 
+#include <log/log.h>
+
 #include "bt_types.h"
 #include "bt_utils.h"
 #include "btm_ble_api.h"
@@ -2461,7 +2463,7 @@ static void btm_ble_parse_adv_data(tBTM_INQ_INFO *p_info, UINT8 *p_data,
 ** Returns          void
 **
 *******************************************************************************/
-void btm_ble_cache_adv_data(tBTM_INQ_RESULTS *p_cur, UINT8 data_len, UINT8 *p, UINT16 evt_type, BOOLEAN extended)
+BOOLEAN btm_ble_cache_adv_data(tBTM_INQ_RESULTS *p_cur, UINT8 data_len, UINT8 *p, UINT8 evt_type, BOOLEAN extended)
 {
     tBTM_BLE_INQ_DATA_CB     *p_le_inq_cb = &p_cur->inq_data;
     UINT8 *p_adv_data_cache;
@@ -2505,9 +2507,30 @@ void btm_ble_cache_adv_data(tBTM_INQ_RESULTS *p_cur, UINT8 data_len, UINT8 *p, U
 
     if(data_len > 0)
     {
-        p_le_inq_cb->adv_len += data_len;
-        memcpy(p_adv_data_cache, p, sizeof(UINT8) * data_len);
+        p_cache = &p_le_inq_cb->adv_data_cache[p_le_inq_cb->adv_len];
+        STREAM_TO_UINT8(length, p);
+        while ( length && ((p_le_inq_cb->adv_len + length + 1) <= BTM_BLE_CACHE_ADV_DATA_MAX))
+        {
+            /* adv record size must be smaller than the total adv data size */
+            if ((length + 1) > data_len) {
+                BTM_TRACE_ERROR("BTM - got incorrect LE advertising data");
+                android_errorWriteLog(0x534e4554, "33899337");
+                return FALSE;
+            }
+            /* copy from the length byte & data into cache */
+            memcpy(p_cache, p-1, length+1);
+            /* reduce the total data size by size of data copied */
+            data_len -= length + 1;
+            /* advance the cache pointer past data */
+            p_cache += length+1;
+            /* increment cache length */
+            p_le_inq_cb->adv_len += length+1;
+            /* skip the length of data */
+            p += length;
+            STREAM_TO_UINT8(length, p);
+        }
     }
+    return TRUE;
 
     /* parse service UUID from adv packet and save it in inq db eir_uuid */
     /* TODO */
@@ -2793,6 +2816,9 @@ BOOLEAN btm_ble_update_inq_result(tINQ_DB_ENT *p_i, UINT8 addr_type, UINT16 evt_
     else if (extended && (data_len >  btm_cb.ble_adv_ext_cb.adv_data_len_max))
     {
         BTM_TRACE_WARNING("Adv data too long for extended adv %d. discard", data_len);
+        return FALSE;
+    }
+    if (!btm_ble_cache_adv_data(p_cur, data_len, p, evt_type, extended)) {
         return FALSE;
     }
 
